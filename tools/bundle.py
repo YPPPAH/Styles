@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Bundle Fire Style Lab into one self-contained HTML file.
+"""Bundle Style Lab (both sections) into one self-contained HTML file.
 
-    python3 tools/bundle.py                      -> dist/fire-style-lab.html (a complete page you can share)
+    python3 tools/bundle.py                      -> dist/style-lab.html (a complete page you can share)
     python3 tools/bundle.py --fragment out.html  -> head + body content only, the form used to publish
                                                     the page as a Claude artifact (it adds its own shell)
 
@@ -15,7 +15,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 args = sys.argv[1:]
 fragment = '--fragment' in args
 paths = [a for a in args if not a.startswith('--')]
-out = pathlib.Path(paths[0]) if paths else root / 'dist' / 'fire-style-lab.html'
+out = pathlib.Path(paths[0]) if paths else root / 'dist' / 'style-lab.html'
 
 html = (root / 'index.html').read_text()
 

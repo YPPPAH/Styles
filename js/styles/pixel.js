@@ -1,6 +1,7 @@
 /* Styles: pixel art (32 colours) and LCD handheld (4 greens).
-   The scene is baked at low resolution and snapped to a palette; the flame is the shared heat field
-   cut into hard colour bands with an ordered dither, stepped at a low frame rate. */
+   The scene is baked at low resolution and snapped to a palette. Fire is the shared heat field and
+   water is the shared flow field, each cut into hard colour bands with an ordered dither and
+   stepped at a low frame rate. */
 (function (FL) {
   'use strict';
   // Pixel art works in colour ramps: every material owns four shades, dark to firelit.
@@ -38,6 +39,48 @@
     return best;
   }
 
+  // Daylight scenes: a shape's own shade picks one of the four steps of its material's ramp.
+  function dayColor(sh) {
+    let r = RAMP[sh.m];
+    if (!r) { // no hand-picked ramp: hue-shift one, shadows towards blue and lights towards warm
+      const c = FL.mat[sh.m] || FL.mat.stone;
+      r = RAMP[sh.m] = [FL.mix(FL.mul(c, 0.4), [22, 24, 60], 0.3), FL.mix(FL.mul(c, 0.68), [40, 52, 96], 0.14), c, FL.mix(FL.mul(c, 1.2), [255, 246, 204], 0.22)].map(q => q.map(Math.round));
+    }
+    return r[r.length === 1 ? 0 : sh.s <= -2.4 ? 0 : sh.s <= -1 ? 1 : sh.s < 0.8 ? 2 : 3];
+  }
+  const WAVE = [[0.86, 1], [0.7, 0.8], [0.52, 0.58], [0.31, 0.42], [0.2, 0.3], [-9, 0.14]]; // [flow threshold, palette position]
+
+  // Draw a list of shapes at low resolution, then snap every pixel (soft edges included) to an allowed colour.
+  function layer(lx, lw, lh, list, colorOf, quant, limit) {
+    lx.setTransform(1, 0, 0, 1, 0, 0); lx.clearRect(0, 0, lw, lh); lx.setTransform(lw / FL.W, 0, 0, lh / FL.H, 0, 0);
+    const used = [], memo = new Map();
+    for (const sh of list) {
+      const c = colorOf(sh);
+      if (limit && !used.includes(c)) used.push(c);
+      lx.fillStyle = FL.rgb(c); FL.path(lx, sh); lx.fill();
+    }
+    const d = lx.getImageData(0, 0, lw, lh).data, out = new Uint8ClampedArray(d.length);
+    for (let i = 0, n = lw * lh; i < n; i++) {
+      if (d[i * 4 + 3] < 128) continue;
+      const b = (i % lw & 3) + ((i / lw | 0) & 3) * 4, key = (d[i * 4] << 20 | d[i * 4 + 1] << 12 | d[i * 4 + 2] << 4 | b) >>> 0;
+      let c = memo.get(key);
+      if (!c) { c = quant(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], FL.bayer[b], used); memo.set(key, c); }
+      out[i * 4] = c[0]; out[i * 4 + 1] = c[1]; out[i * 4 + 2] = c[2]; out[i * 4 + 3] = 255;
+    }
+    return out;
+  }
+  // Whole-number zoom first, so every pixel stays the same size; S caches the intermediate canvas.
+  function blit(ctx, cw, ch, low, S, grid) {
+    const lw = low.width, lh = low.height, z = Math.max(1, Math.round(cw / lw));
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (lw * z === cw) { ctx.imageSmoothingEnabled = false; ctx.drawImage(low, 0, 0, cw, ch); }
+    else {
+      if (!S.mid || S.mid.width !== lw * z) { S.mid = FL.canvas(lw * z, lh * z); S.mx = S.mid.getContext('2d'); S.mx.imageSmoothingEnabled = false; }
+      S.mx.drawImage(low, 0, 0, lw * z, lh * z); ctx.imageSmoothingEnabled = true; ctx.drawImage(S.mid, 0, 0, cw, ch);
+    }
+    if (grid) grid(ctx, cw, ch, lw, lh);
+  }
+
   function make(cfg) {
     FL.style({
       id: cfg.id, name: cfg.name, tech: cfg.tech, note: cfg.note, file: 'pixel.js',
@@ -46,27 +89,11 @@
         const low = FL.canvas(lw, lh), lx = low.getContext('2d', { willReadFrequently: true });
         const img = lx.createImageData(lw, lh), D = img.data;
         const sparks = new FL.Sparks(sc, 24), smoke = new FL.Smoke(sc);
-        let key = '', levels = null, last = -1, mid = null, mx = null;
+        let key = '', levels = null, last = -1; const S = {};
 
         function bake(P) { // three firelight levels x (back, front), quantised once
-          levels = [0.12, 0.5, 0.9].map(f => [sc.back, sc.front].map(list => {
-            lx.setTransform(1, 0, 0, 1, 0, 0); lx.clearRect(0, 0, lw, lh); lx.setTransform(1 / sx, 0, 0, 1 / sy, 0, 0);
-            const used = [], memo = new Map();
-            for (const sh of list) {
-              const c = cfg.color ? cfg.color(sh, sc, P, f) : FL.shade(sh, sc, P, f);
-              if (cfg.color && !used.includes(c)) used.push(c);
-              lx.fillStyle = FL.rgb(c); FL.path(lx, sh); lx.fill();
-            }
-            const d = lx.getImageData(0, 0, lw, lh).data, out = new Uint8ClampedArray(d.length);
-            for (let i = 0, n = lw * lh; i < n; i++) { // snap every pixel (including soft edges) to an allowed colour
-              if (d[i * 4 + 3] < 128) continue;
-              const b = (i % lw & 3) + ((i / lw | 0) & 3) * 4, key = (d[i * 4] << 20 | d[i * 4 + 1] << 12 | d[i * 4 + 2] << 4 | b) >>> 0;
-              let c = memo.get(key);
-              if (!c) { c = cfg.quant(d[i * 4], d[i * 4 + 1], d[i * 4 + 2], FL.bayer[b], used); memo.set(key, c); }
-              out[i * 4] = c[0]; out[i * 4 + 1] = c[1]; out[i * 4 + 2] = c[2]; out[i * 4 + 3] = 255;
-            }
-            return out;
-          }));
+          levels = [0.12, 0.5, 0.9].map(f => [sc.back, sc.front].map(list =>
+            layer(lx, lw, lh, list, sh => (cfg.color ? cfg.color(sh, sc, P, f) : FL.shade(sh, sc, P, f)), cfg.quant, !!cfg.color)));
         }
         function put(x, y, c) {
           x |= 0; y |= 0; if (x < 0 || y < 0 || x >= lw || y >= lh) return;
@@ -104,16 +131,48 @@
             if (k !== key) { key = k; bake(P); last = -1; }
             const step = Math.floor(t * cfg.fps);
             if (step !== last) { last = step; frame(step, P); }
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            const z = Math.max(1, Math.round(cw / lw)); // whole-number zoom first, so every pixel stays the same size
-            if (lw * z === cw) { ctx.imageSmoothingEnabled = false; ctx.drawImage(low, 0, 0, cw, ch); }
-            else {
-              if (!mid || mid.width !== lw * z) { mid = FL.canvas(lw * z, lh * z); mx = mid.getContext('2d'); mx.imageSmoothingEnabled = false; }
-              mx.drawImage(low, 0, 0, lw * z, lh * z); ctx.imageSmoothingEnabled = true; ctx.drawImage(mid, 0, 0, cw, ch);
-            }
-            if (cfg.grid) cfg.grid(ctx, cw, ch, lw, lh);
+            blit(ctx, cw, ch, low, S, cfg.grid);
           }
         };
+      },
+      water: {
+        tech: cfg.wtech, note: cfg.wnote,
+        create(sc) {
+          const lw = cfg.lw, lh = cfg.lh, sx = FL.W / lw, sy = FL.H / lh;
+          const low = FL.canvas(lw, lh), lx = low.getContext('2d', { willReadFrequently: true });
+          const img = lx.createImageData(lw, lh), D = img.data, S = {};
+          const spray = new FL.Spray(sc, 40), mist = new FL.Mist(sc);
+          let layers = null, last = '';
+          function put(x, y, c) {
+            x |= 0; y |= 0; if (x < 0 || y < 0 || x >= lw || y >= lh) return;
+            const i = (y * lw + x) * 4; D[i] = c[0]; D[i + 1] = c[1]; D[i + 2] = c[2];
+          }
+          function frame(step, P) {
+            const tq = step / cfg.fps, fr = layers[1];
+            D.set(layers[0]);
+            for (let py = 0; py < lh; py++) for (let px = 0; px < lw; px++) {
+              const v = FL.flow(sc, (px + 0.5) * sx, (py + 0.5) * sy, tq, P, cfg.det);
+              if (v >= 0) put(px, py, cfg.wave(v + (FL.bayer[(px & 3) + (py & 3) * 4] - 0.5) * cfg.dither, P));
+            }
+            for (let i = 0; i < fr.length; i += 4) if (fr[i + 3]) { D[i] = fr[i]; D[i + 1] = fr[i + 1]; D[i + 2] = fr[i + 2]; }
+            for (const p of mist.list) { // mist is a dither pattern, never a blend
+              const r = p.r / sx, cx = p.x / sx, cy = p.y / sy;
+              for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++)
+                if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < r * r && FL.bayer[(x & 3) + (y & 3) * 4] < p.a * 0.55) put(x, y, cfg.mist);
+            }
+            for (const p of spray.list) put(p.x / sx, p.y / sy, cfg.drop);
+            lx.setTransform(1, 0, 0, 1, 0, 0); lx.putImageData(img, 0, 0);
+          }
+          return {
+            draw(ctx, cw, ch, t, dt, P) {
+              spray.step(dt, t, P); mist.step(dt, t, P);
+              if (!layers) layers = [sc.back, sc.front].map(list => layer(lx, lw, lh, list, sh => (cfg.color ? dayColor(sh) : FL.shade(sh, sc, P, 0.5)), cfg.wquant || cfg.quant, !!cfg.color));
+              const k = Math.floor(t * cfg.fps) + P.pal.id + P.intensity + P.wind + P.foam;
+              if (k !== last) { last = k; frame(Math.floor(t * cfg.fps), P); }
+              blit(ctx, cw, ch, low, S, cfg.grid);
+            }
+          };
+        }
       }
     });
   }
@@ -123,7 +182,10 @@
     note: 'A cellular heat field cut into five hard colour bands with an ordered dither. Every material owns a four-shade ramp, and firelight moves shapes up and down their ramp in three baked steps, the way a sprite sheet would.',
     color: rampColor, quant: (r, g, b, bay, used) => nearest(used, r, g, b),
     flame: (h, P) => { for (const [th, v] of BANDS) if (h >= th) return P.pal.at(v); },
-    spark: (k, P) => P.pal.at(0.6 + 0.4 * k), star: [203, 219, 252], smoke: [105, 106, 106]
+    spark: (k, P) => P.pal.at(0.6 + 0.4 * k), star: [203, 219, 252], smoke: [105, 106, 106],
+    wtech: 'Flow field · 160×120 · 6 colour bands · 12 fps', det: 1, dither: 0.05, mist: [232, 242, 248], drop: [255, 255, 255],
+    wnote: 'The flow field is cut into six flat bands of the water colour, with an ordered dither where one band meets the next. Streaks travel along lanes that follow the river bed, so the current reads even at this size. Mist is a dither pattern, never a blend.',
+    wave: (v, P) => { for (const [th, q] of WAVE) if (v >= th) return P.pal.at(q); }
   });
 
   make({
@@ -132,6 +194,10 @@
     quant: (r, g, b, bay) => LCD[FL.clamp(Math.floor(Math.min(0.999, FL.lum([r, g, b]) * 2.1) * 4 - 0.2 + (bay - 0.5) * 0.6), 0, 3)],
     flame: h => (h >= 0.55 ? LCD[3] : h >= 0.27 ? LCD[2] : LCD[0]), // darkest shade = keyline round the flame
     spark: () => LCD[3], star: LCD[2], smoke: LCD[1],
+    wtech: 'Flow field · 80×60 · 4 greens · 8 fps', det: 0.6, dither: 0.16, mist: LCD[3], drop: LCD[3],
+    wquant: (r, g, b, bay) => LCD[FL.clamp(Math.floor(Math.min(0.999, FL.lum([r, g, b]) * 1.2) * 4 - 0.3 + (bay - 0.5) * 0.6), 0, 3)], // daylight needs less gain
+    wnote: 'Four greens and 4,800 pixels. Water colour is ignored, so open water sits on the two middle shades and only streaks and foam reach the lightest one. The lanes are widened so the flow still reads.',
+    wave: v => (v >= 0.62 ? LCD[3] : v >= 0.4 ? LCD[2] : LCD[1]),
     grid(ctx, cw, ch, lw, lh) {
       const cs = cw / lw; if (cs < 3) return;
       const g = Math.max(1, cs * 0.09);

@@ -1,4 +1,4 @@
-/* Fire Style Lab — subjects: WHAT burns. Each subject is plain geometry (polygons tagged with a
+/* Style Lab — fire subjects: WHAT burns. Each subject is plain geometry (polygons tagged with a
    material) plus flame emitters, so every art style can draw every fire.
    back = drawn behind the flames, front = drawn over them. d:1 marks fine detail a style may skip. */
 (function (FL) {

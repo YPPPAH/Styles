@@ -1,6 +1,7 @@
-/* Fire Style Lab
-   Layout: one workbench (live stage beside its controls) above three contact strips of thumbnails.
-   The page stays quiet so the fire is the only thing that glows; the accent follows the chosen fuel. */
+/* Style Lab
+   Layout: a section switch (Fire, Water), then one workbench (live stage beside its controls) above
+   three contact strips of thumbnails. The page stays quiet so the picture is the only thing that
+   glows; the accent follows the chosen fuel or water colour. */
 :root {
   color-scheme: dark;
   --bg: #11140f;         /* pine black */
@@ -9,7 +10,7 @@
   --line: #333b2e;
   --fg: #e6dfc8;         /* tent canvas */
   --muted: #a39f88;
-  --flame: #ffa51f;      /* set from the fuel palette by app.js */
+  --flame: #ffa51f;      /* set from the fuel or water palette by app.js */
   --accent: var(--flame);
   --on-accent: #1b1205;
   --display: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
@@ -43,9 +44,18 @@ code { font-size: 0.87em; }
 kbd { font-size: 0.8em; border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; background: var(--panel); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* header */
-.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 28px; }
+/* header: the name, the section switch, then what this section is */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; }
 .top h1 { font-size: clamp(34px, 5vw, 54px); text-transform: uppercase; }
+.labs { display: flex; gap: 8px; }
+.lab {
+  font: 800 24px/1 var(--display); text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); text-align: left;
+  background: none; border: 1px solid var(--line); border-radius: 3px; padding: 9px 16px 9px 14px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 5px; min-width: 0;
+}
+.lab small { font: 400 11px/1.2 var(--mono); text-transform: none; letter-spacing: 0; }
+.lab:hover { border-color: var(--muted); color: var(--fg); }
+.lab[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .lede { color: var(--muted); max-width: 62ch; min-width: 0; flex: 1 1 320px; }
 
 /* workbench */
@@ -118,6 +128,8 @@ input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); heigh
 .foot p { max-width: 80ch; }
 
 @media (max-width: 900px) {
+  .labs { flex: 1 1 100%; }
+  .lab { flex: 1 1 0; }
   .bench { grid-template-columns: minmax(0, 1fr); }
   .cards.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cards.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }

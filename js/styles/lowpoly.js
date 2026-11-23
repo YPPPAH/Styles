@@ -1,27 +1,38 @@
 /* Style: low-poly. A jittered triangle mesh; every facet takes one flat colour from the scene
-   under its centre, and facets inside the heat field blend towards the flame ramp.
-   The mesh is painted once; each frame only repaints facets that burn or catch firelight. */
+   under its centre. Facets inside the heat field blend towards the flame ramp; facets over water
+   take the flow field at their centre. The mesh is painted once; each frame only repaints the
+   facets that burn, catch firelight or lie on water. */
 (function (FL) {
   'use strict';
   const COLS = 32, ROWS = 24, RW = 160, RH = 120;
+  function mesh() { // the same jittered grid for every scene
+    const r = FL.rng(3), cw0 = FL.W / COLS, ch0 = FL.H / ROWS, V = [], tris = [];
+    for (let j = 0; j <= ROWS; j++) for (let i = 0; i <= COLS; i++) {
+      const edge = i === 0 || j === 0 || i === COLS || j === ROWS;
+      V.push([i * cw0 + (edge ? 0 : (r() - 0.5) * cw0 * 0.72), j * ch0 + (edge ? 0 : (r() - 0.5) * ch0 * 0.72)]);
+    }
+    function tri(a, b, c) {
+      const cx = (a[0] + b[0] + c[0]) / 3, cy = (a[1] + b[1] + c[1]) / 3;
+      const grow = q => { const dx = q[0] - cx, dy = q[1] - cy, l = Math.hypot(dx, dy) || 1; return [q[0] + dx / l * 0.5, q[1] + dy / l * 0.5]; }; // overlap hides seams
+      tris.push({ p: [grow(a), grow(b), grow(c)], cx, cy, jit: 0.92 + r() * 0.16 });
+    }
+    for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
+      const a = V[j * (COLS + 1) + i], b = V[j * (COLS + 1) + i + 1], c = V[(j + 1) * (COLS + 1) + i], d = V[(j + 1) * (COLS + 1) + i + 1];
+      if ((i + j) & 1) { tri(a, b, c); tri(b, d, c); } else { tri(a, b, d); tri(a, d, c); }
+    }
+    return tris;
+  }
+  function facet(ctx, T, c) {
+    ctx.fillStyle = FL.rgb(FL.mul(c, T.jit)); const p = T.p;
+    ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); ctx.lineTo(p[2][0], p[2][1]); ctx.closePath(); ctx.fill();
+  }
+  const kite = (ctx, x, y, s) => { ctx.beginPath(); ctx.moveTo(x, y - s * 1.5); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s * 1.5); ctx.lineTo(x - s, y); ctx.closePath(); ctx.fill(); };
+  const at = T => (Math.min(RH - 1, T.cy * RH / FL.H | 0) * RW + Math.min(RW - 1, T.cx * RW / FL.W | 0)) * 4; // facet centre in the reference image
   FL.style({
     id: 'lowpoly', name: 'Low-poly', tech: 'Jittered mesh · 1,536 flat facets · 60 fps',
     note: 'The picture is rebuilt from flat triangles. Each facet samples the scene once and is tinted by the heat field at its centre, so the flame reads as shards of colour that flare and fade.',
     create(sc) {
-      const r = FL.rng(3), cw0 = FL.W / COLS, ch0 = FL.H / ROWS, V = [], tris = [];
-      for (let j = 0; j <= ROWS; j++) for (let i = 0; i <= COLS; i++) {
-        const edge = i === 0 || j === 0 || i === COLS || j === ROWS;
-        V.push([i * cw0 + (edge ? 0 : (r() - 0.5) * cw0 * 0.72), j * ch0 + (edge ? 0 : (r() - 0.5) * ch0 * 0.72)]);
-      }
-      function tri(a, b, c) {
-        const cx = (a[0] + b[0] + c[0]) / 3, cy = (a[1] + b[1] + c[1]) / 3;
-        const grow = q => { const dx = q[0] - cx, dy = q[1] - cy, l = Math.hypot(dx, dy) || 1; return [q[0] + dx / l * 0.5, q[1] + dy / l * 0.5]; }; // overlap hides seams
-        tris.push({ p: [grow(a), grow(b), grow(c)], cx, cy, jit: 0.92 + r() * 0.16 });
-      }
-      for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) {
-        const a = V[j * (COLS + 1) + i], b = V[j * (COLS + 1) + i + 1], c = V[(j + 1) * (COLS + 1) + i], d = V[(j + 1) * (COLS + 1) + i + 1];
-        if ((i + j) & 1) { tri(a, b, c); tri(b, d, c); } else { tri(a, b, d); tri(a, d, c); }
-      }
+      const tris = mesh();
       const ref = FL.canvas(RW, RH), rx = ref.getContext('2d', { willReadFrequently: true });
       const sparks = new FL.Sparks(sc, 20), smoke = new FL.Smoke(sc);
       let key = '', stat = null, sx = null;
@@ -29,23 +40,18 @@
         rx.setTransform(1, 0, 0, 1, 0, 0); rx.clearRect(0, 0, RW, RH); rx.setTransform(RW / FL.W, 0, 0, RH / FL.H, 0, 0);
         FL.fillShapes(rx, list, sc, P, f, 1); return rx.getImageData(0, 0, RW, RH).data;
       }
-      function facet(ctx, T, c) {
-        ctx.fillStyle = FL.rgb(FL.mul(c, T.jit)); const p = T.p;
-        ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); ctx.lineTo(p[2][0], p[2][1]); ctx.closePath(); ctx.fill();
-      }
       function bake(P, cw, ch) { // dim and bright firelight per facet; facets under a front shape never burn
         const b0 = grab(sc.back, 0.1, P), b1 = grab(sc.back, 0.95, P), f0 = grab(sc.front, 0.1, P), f1 = grab(sc.front, 0.95, P);
         if (!stat || stat.width !== cw) { stat = FL.canvas(cw, ch); sx = stat.getContext('2d'); }
         sx.setTransform(cw / FL.W, 0, 0, cw / FL.W, 0, 0);
         for (const T of tris) {
-          const i = (Math.min(RH - 1, T.cy * RH / FL.H | 0) * RW + Math.min(RW - 1, T.cx * RW / FL.W | 0)) * 4;
+          const i = at(T);
           T.front = f0[i + 3] > 128; const A = T.front ? f0 : b0, B = T.front ? f1 : b1;
           T.dim = [A[i], A[i + 1], A[i + 2]]; T.bright = [B[i], B[i + 1], B[i + 2]];
           T.dyn = Math.abs(FL.lum(T.bright) - FL.lum(T.dim)) > 0.025;
           facet(sx, T, FL.mix(T.dim, T.bright, 0.5));
         }
       }
-      const kite = (ctx, x, y, s) => { ctx.beginPath(); ctx.moveTo(x, y - s * 1.5); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s * 1.5); ctx.lineTo(x - s, y); ctx.closePath(); ctx.fill(); };
       return {
         draw(ctx, cw, ch, t, dt, P) {
           sparks.step(dt, t, P); smoke.step(dt, t, P);
@@ -74,6 +80,41 @@
           FL.glow(ctx, sc, P, f, 0.35);
         }
       };
+    },
+    water: {
+      tech: 'Jittered mesh · 1,536 flat facets · 60 fps',
+      note: 'Every facet that lies on water reads the flow field once, at its centre, so the current shows as shards switching between a few blues and foam as whole facets turning white. Banks stay jagged: a facet is either water or it is not.',
+      create(sc) {
+        const tris = mesh(), ref = FL.canvas(RW, RH), rx = ref.getContext('2d', { willReadFrequently: true });
+        const spray = new FL.Spray(sc, 40), mist = new FL.Mist(sc, 20), m = FL.wmap(sc);
+        let stat = null, wet = [];
+        function grab(list, P) {
+          rx.setTransform(1, 0, 0, 1, 0, 0); rx.clearRect(0, 0, RW, RH); rx.setTransform(RW / FL.W, 0, 0, RH / FL.H, 0, 0);
+          FL.fillShapes(rx, list, sc, P, 0.5, 1); return rx.getImageData(0, 0, RW, RH).data;
+        }
+        function bake(P, cw, ch) {
+          const b = grab(sc.back, P), f = grab(sc.front, P);
+          stat = FL.canvas(cw, ch); const sx = stat.getContext('2d'); sx.setTransform(cw / FL.W, 0, 0, cw / FL.W, 0, 0); wet = [];
+          for (const T of tris) {
+            const i = at(T), front = f[i + 3] > 128, A = front ? f : b;
+            facet(sx, T, [A[i], A[i + 1], A[i + 2]]);
+            if (!front && m.id[i / 4]) wet.push(T);
+          }
+        }
+        return {
+          draw(ctx, cw, ch, t, dt, P) {
+            spray.step(dt, t, P); mist.step(dt, t, P);
+            if (!stat || stat.width !== cw) bake(P, cw, ch);
+            const k = cw / FL.W;
+            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(stat, 0, 0);
+            ctx.setTransform(k, 0, 0, k, 0, 0);
+            for (const T of wet) facet(ctx, T, P.pal.at(FL.clamp(FL.flow(sc, T.cx, T.cy, t, P, 0.5) + (T.jit - 1) * 0.5, 0, 1)));
+            for (const p of mist.list) { ctx.fillStyle = `rgba(255,255,255,${p.a * 0.3})`; kite(ctx, p.x, p.y, p.r * 0.85); }
+            ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            for (const p of spray.list) kite(ctx, p.x, p.y, 0.8 + p.k * 0.8);
+          }
+        };
+      }
     }
   });
 })(window.FL);

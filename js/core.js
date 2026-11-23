@@ -1,6 +1,6 @@
-/* Fire Style Lab — core: maths, noise, colour, flame palettes, the shared fire model
-   and the registries that subjects (what burns) and styles (how it is drawn) plug into.
-   Scene space is always 320 x 240 units, y down. Styles scale it to their canvas. */
+/* Style Lab — core: maths, noise, colour, flame palettes, the shared fire model and the
+   registries that subjects (what is drawn) and styles (how it is drawn) plug into.
+   The water model lives in water.js. Scene space is always 320 x 240 units, y down. */
 (function (g) {
   'use strict';
   const FL = g.FL = { styles: [], subjects: [], W: 320, H: 240 };
@@ -59,6 +59,7 @@
       at(v) { const i = clamp(v * 255 | 0, 0, 255) * 3; return [lut[i], lut[i + 1], lut[i + 2]]; }
     };
   }
+  FL.palette = palette;
   FL.palettes = [
     palette('wood', 'Wood fire', 'Seasoned hardwood, roughly 600–1100 °C',
       ['#2a0500', '#a81905', '#ee5a0c', '#ffa51f', '#ffe270', '#fffbe0']),
@@ -231,12 +232,12 @@
   FL.scene = function (id) {
     if (cache[id]) return cache[id];
     const def = FL.subjects.find(s => s.id === id), sc = def.build();
-    sc.id = id; sc.kind = def.kind;
+    sc.id = id; sc.kind = def.kind; sc.lab = def.lab || 'fire';
     for (const sh of sc.back.concat(sc.front)) {
       let x = 0, y = 0; for (const q of sh.p) { x += q[0]; y += q[1]; }
       sh.cx = x / sh.p.length; sh.cy = y / sh.p.length; sh.d = sh.d || 0;
-      sh.bg = !sh.d && /^(sky|ground|floor|wall|plaster)$/.test(sh.m); // backdrop sheets
-      if (sh.lit == null) sh.lit = Math.pow(clamp(1 - Math.hypot(sh.cx - sc.glow.x, (sh.cy - sc.glow.y) * 1.3) / sc.glow.r, 0, 1), 1.3);
+      if (sh.bg == null) sh.bg = !sh.d && /^(sky|ground|floor|wall|plaster)$/.test(sh.m); // backdrop sheets
+      if (sh.lit == null) sh.lit = sc.glow ? Math.pow(clamp(1 - Math.hypot(sh.cx - sc.glow.x, (sh.cy - sc.glow.y) * 1.3) / sc.glow.r, 0, 1), 1.3) : 0;
     }
     return (cache[id] = sc);
   };
