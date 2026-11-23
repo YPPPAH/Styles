@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- page:head -->
+<title>Fire Style Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<!-- page:head-end -->
+<link rel="stylesheet" href="css/lab.css">
+</head>
+<body>
+<!-- page:start -->
+<div class="wrap">
+  <header class="top">
+    <h1>Fire Style Lab</h1>
+    <p class="lede">Eight fires, ten ways to draw them. Pick a fire and an art style, then change the flame, the wind and the fuel to see how each technique holds up in motion.</p>
+  </header>
+
+  <section class="bench" aria-label="Test bench">
+    <figure class="stage" id="stage-fig" tabindex="0" aria-label="Selected fire, animated. Arrow keys change style and fire, space pauses.">
+      <canvas id="stage" width="960" height="720"></canvas>
+      <figcaption>
+        <span class="cap-main"><span id="cap-style">Pixel art</span><span class="cap-sep" aria-hidden="true">/</span><span id="cap-subject">Log cabin lay</span></span>
+        <span class="cap-meta"><span id="cap-size">960×720</span><span id="cap-fps">60 fps</span></span>
+      </figcaption>
+    </figure>
+
+    <aside class="panel" aria-label="Controls">
+      <div class="about">
+        <h2 id="now-style">Pixel art</h2>
+        <p class="tech" id="now-tech"></p>
+        <p id="now-note"></p>
+        <h3 id="now-subject">Log cabin lay</h3>
+        <p id="now-blurb"></p>
+        <p class="src">Style code: <code id="now-src">js/styles/pixel.js</code></p>
+      </div>
+
+      <div class="controls">
+        <div class="ctl">
+          <label for="c-intensity">Flame height</label><output id="o-intensity" for="c-intensity">steady · 100%</output>
+          <input type="range" id="c-intensity" min="0.3" max="1.5" step="0.01" value="1">
+        </div>
+        <div class="ctl">
+          <label for="c-wind">Wind</label><output id="o-wind" for="c-wind">calm</output>
+          <input type="range" id="c-wind" min="-1" max="1" step="0.01" value="0">
+        </div>
+        <div class="ctl">
+          <label for="c-speed">Playback speed</label><output id="o-speed" for="c-speed">×1.00</output>
+          <input type="range" id="c-speed" min="0.1" max="2" step="0.01" value="1">
+        </div>
+        <div class="ctl">
+          <span class="ctl-label" id="fuel-label">Fuel</span><output id="o-fuel"></output>
+          <div class="fuels" id="fuels" role="group" aria-labelledby="fuel-label"></div>
+        </div>
+        <div class="row" role="group" aria-label="Effects">
+          <button type="button" class="chip" id="t-sparks" aria-pressed="true">Sparks</button>
+          <button type="button" class="chip" id="t-smoke" aria-pressed="true">Smoke</button>
+          <button type="button" class="chip" id="t-glow" aria-pressed="true">Firelight</button>
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="b-pause">Pause</button>
+          <button type="button" class="btn" id="b-sound" aria-pressed="false">Crackle sound: off</button>
+          <button type="button" class="btn quiet" id="b-reset">Reset</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="strip" aria-labelledby="h-styles">
+    <div class="strip-head"><h2 id="h-styles">Art styles</h2><p id="styles-hint">The same fire in every style.</p></div>
+    <div class="cards five" id="styles"></div>
+  </section>
+
+  <section class="strip" aria-labelledby="h-camp">
+    <div class="strip-head"><h2 id="h-camp">Campfires</h2><p id="camp-hint">Four ways to lay the wood.</p></div>
+    <div class="cards four" id="campfires"></div>
+  </section>
+
+  <section class="strip" aria-labelledby="h-place">
+    <div class="strip-head"><h2 id="h-place">Fireplaces</h2><p id="place-hint">Four ways to keep the fire indoors.</p></div>
+    <div class="cards four" id="fireplaces"></div>
+  </section>
+
+  <footer class="foot">
+    <p>Keys, with the stage focused: <kbd>←</kbd> <kbd>→</kbd> change style, <kbd>↑</kbd> <kbd>↓</kbd> change fire, <kbd>Space</kbd> pauses.</p>
+    <p>Every fire is plain geometry in <code>js/subjects.js</code> and every style is one file in <code>js/styles/</code>, so any style can draw any fire. Add a file to add a style.</p>
+  </footer>
+</div>
+<!-- page:end -->
+<script src="js/core.js"></script>
+<script src="js/subjects.js"></script>
+<script src="js/styles/pixel.js"></script>
+<script src="js/styles/vector.js"></script>
+<script src="js/styles/shader.js"></script>
+<script src="js/styles/ink.js"></script>
+<script src="js/styles/paper.js"></script>
+<script src="js/styles/paint.js"></script>
+<script src="js/styles/lowpoly.js"></script>
+<script src="js/styles/neon.js"></script>
+<script src="js/styles/ascii.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
